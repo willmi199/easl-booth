@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EASL Future Champions — Booth 3D Model</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#070d1c;font-family:"Segoe UI",Helvetica,Arial,sans-serif;}
+  #app{position:fixed;inset:0;}
+  .hud{position:fixed;left:18px;top:16px;color:#eaf2ff;z-index:10;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.6);}
+  .hud .kick{letter-spacing:.32em;font-size:11px;color:#9fc1ff;text-transform:uppercase;}
+  .hud h1{margin:4px 0 2px;font-size:20px;font-weight:800;}
+  .hud .sub{font-size:12px;color:#aac0e6;}
+  .bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;display:flex;gap:10px;}
+  .bar button{pointer-events:auto;cursor:pointer;border:1px solid #2f63c9;background:rgba(16,42,110,.85);color:#eaf2ff;
+    font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:9px;backdrop-filter:blur(6px);}
+  .bar button:hover{background:rgba(31,79,209,.95);}
+  .hint{position:fixed;right:18px;bottom:18px;color:#8ea7d6;font-size:11.5px;z-index:10;}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#9fc1ff;
+    font-size:14px;letter-spacing:.1em;z-index:20;background:#070d1c;}
+</style>
+</head>
+<body>
+<div id="loading">LOADING 3D BOOTH MODEL…</div>
+<div class="hud">
+  <div class="kick">Hustle 5 · EASL Future Champions</div>
+  <h1>All-Star Weekend — Booth 3D Model</h1>
+  <div class="sub">Kai Tak Sports Park · Carnival Area · 24–26 July 2026</div>
+</div>
+<div class="bar">
+  <button id="rotateBtn">⏸ Auto-rotate</button>
+  <button id="resetBtn">⟲ Reset view</button>
+  <button id="frontBtn">▣ Front view</button>
+  <button id="glbBtn">⬇ Download .glb (for PowerPoint)</button>
+</div>
+<div class="hint">Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+<div id="app"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// ---------- palette ----------
+const C = {
+  blue:'#1b4fd1', blue2:'#2456d6', blueMid:'#3f6fe0', peri:'#9fb8f0',
+  navy:'#0e2a6e', navyD:'#091d4d', white:'#f4f8ff',
+  red:'#d62436', orange:'#ff7a1a', yellow:'#ffc928'
+};
+
+// ---------- renderer / scene / camera ----------
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0a1430');
+scene.fog = new THREE.Fog('#0a1430', 16, 34);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+const START = new THREE.Vector3(7.5, 4.6, 8.5);
+camera.position.copy(START);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(0, 1.4, -0.6);
+controls.minDistance = 4;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI/2 + 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.7;
+
+// ---------- lights ----------
+scene.add(new THREE.HemisphereLight('#cfe0ff', '#1a2747', 0.75));
+const amb = new THREE.AmbientLight('#ffffff', 0.25); scene.add(amb);
+const key = new THREE.DirectionalLight('#ffffff', 2.0);
+key.position.set(6, 9, 7);
+key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-9; key.shadow.camera.right=9;
+key.shadow.camera.top=9; key.shadow.camera.bottom=-9;
+key.shadow.camera.near=1; key.shadow.camera.far=30;
+key.shadow.bias=-0.0004;
+scene.add(key);
+const fill = new THREE.DirectionalLight('#9fc1ff', 0.5);
+fill.position.set(-6,4,4); scene.add(fill);
+
+// ---------- ground ----------
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60,60),
+  new THREE.MeshStandardMaterial({ color:'#0b1530', roughness:0.95, metalness:0.0 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- canvas-texture helpers ----------
+function cvs(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+function tex(canvas){ const t=new THREE.CanvasTexture(canvas); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; return t; }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function collageTexture(){
+  const c=cvs(1024,1024), x=c.getContext('2d');
+  x.fillStyle=C.navy; x.fillRect(0,0,1024,1024);
+  const tiles=[
+    [0,0,360,250,C.blue],[372,0,260,160,C.blueMid],[644,0,380,130,C.peri],
+    [372,172,260,250,C.navyD],[644,142,190,190,C.blue2],[846,142,178,190,C.blueMid],
+    [0,262,360,360,'#13317a'],[644,344,380,90,C.blue],[0,634,520,250,C.blue2],
+    [532,446,492,438,'#13317a'],[372,634,150,250,C.navy]
+  ];
+  tiles.forEach(([tx,ty,tw,th,col])=>{ x.fillStyle=col; x.fillRect(tx,ty,tw,th); });
+  x.fillStyle=C.white; x.font='900 86px Arial'; x.textAlign='center';
+  x.fillText('EASL',185,150);
+  x.font='italic 900 52px Arial'; x.fillText('YOUR',500,210); x.fillText('GAME',500,265);
+  x.fillStyle=C.navy; x.font='800 30px Arial'; x.fillText('EAST ASIA SUPER LEAGUE',834,80);
+  x.fillStyle=C.white; x.font='900 46px Arial'; x.fillText('EASL',738,410);
+  x.font='italic 900 130px Arial'; x.fillStyle='rgba(159,184,240,.85)'; x.fillText('YOUR',250,800);
+  x.fillStyle='rgba(111,147,230,.55)'; x.fillText('GAME',770,740);
+  // small EASL ticker row
+  x.fillStyle=C.blue; x.fillRect(0,884,1024,40);
+  x.fillStyle=C.white; x.font='800 22px Arial';
+  for(let i=0;i<6;i++) x.fillText('EASL',90+i*170,912);
+  return tex(c);
+}
+
+function dunkTexture(){
+  const c=cvs(1024,1024), x=c.getContext('2d');
+  x.fillStyle=C.blue; x.fillRect(0,0,1024,1024);
+  // navy mountain
+  x.fillStyle=C.navy; x.beginPath();
+  x.moveTo(0,520); x.lineTo(300,420); x.lineTo(560,540); x.lineTo(820,400); x.lineTo(1024,520);
+  x.lineTo(1024,1024); x.lineTo(0,1024); x.closePath(); x.fill();
+  // red shard
+  x.fillStyle=C.red; x.beginPath();
+  x.moveTo(520,640); x.lineTo(900,520); x.lineTo(1024,640); x.lineTo(1024,840); x.lineTo(560,840); x.closePath(); x.fill();
+  // orange shard
+  x.fillStyle=C.orange; x.beginPath();
+  x.moveTo(0,680); x.lineTo(220,600); x.lineTo(250,860); x.lineTo(0,860); x.closePath(); x.fill();
+  // stars
+  function star(cx,cy,s){ x.fillStyle=C.yellow; x.beginPath();
+    for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5; x.lineTo(cx+Math.cos(a)*s,cy+Math.sin(a)*s);
+      const a2=a+Math.PI/5; x.lineTo(cx+Math.cos(a2)*s*.45,cy+Math.sin(a2)*s*.45);} x.closePath(); x.fill(); }
+  star(640,150,28); star(720,110,18); star(590,210,16);
+  // graffiti
+  x.save(); x.translate(720,360); x.rotate(-0.12); x.fillStyle=C.navy;
+  x.font='italic 900 70px Arial'; x.fillText('BUILT',0,0); x.fillText('FOR MORE',-10,72); x.restore();
+  // EASL future champions wordmark
+  x.fillStyle=C.white; x.font='900 70px Arial'; x.textAlign='center'; x.fillText('EASL',840,140);
+  x.font='800 22px Arial'; x.fillText('FUTURE CHAMPIONS',840,170);
+  return tex(c);
+}
+
+function backboardTexture(){
+  const c=cvs(512,400), x=c.getContext('2d');
+  x.fillStyle=C.navyD; x.fillRect(0,0,512,400);
+  x.strokeStyle=C.white; x.lineWidth=10; x.strokeRect(14,14,484,372);
+  x.beginPath(); x.arc(256,120,70,0,Math.PI*2); x.stroke();
+  x.fillStyle=C.white; x.textAlign='center'; x.font='900 70px Arial'; x.fillText('EASL',256,290);
+  x.font='800 24px Arial'; x.fillStyle=C.peri; x.fillText('FUTURE CHAMPIONS',256,322);
+  return tex(c);
+}
+
+function hoopBoardTexture(){
+  const c=cvs(680,400), x=c.getContext('2d');
+  x.fillStyle=C.white; x.fillRect(0,0,680,400);
+  x.strokeStyle=C.navy; x.lineWidth=10; x.strokeRect(10,10,660,380);
+  // orange shooter's target square
+  x.strokeStyle=C.orange; x.lineWidth=14; x.strokeRect(250,210,180,140);
+  // EASL Future Champions
+  x.fillStyle=C.navy; x.textAlign='center'; x.font='900 66px Arial'; x.fillText('EASL',340,130);
+  x.font='800 24px Arial'; x.fillText('FUTURE CHAMPIONS',340,164);
+  return tex(c);
+}
+
+function netTexture(){
+  const c=cvs(256,256), x=c.getContext('2d'); x.clearRect(0,0,256,256);
+  x.strokeStyle='rgba(255,255,255,0.92)'; x.lineWidth=5;
+  for(let i=-256;i<512;i+=26){
+    x.beginPath(); x.moveTo(i,0); x.lineTo(i+256,256); x.stroke();
+    x.beginPath(); x.moveTo(i+256,0); x.lineTo(i,256); x.stroke();
+  }
+  const t=tex(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(4,1); return t;
+}
+
+function fasciaTexture(){
+  const c=cvs(2048,160), x=c.getContext('2d');
+  x.fillStyle=C.navy; x.fillRect(0,0,2048,160);
+  x.fillStyle=C.white; x.textAlign='center'; x.font='900 64px Arial';
+  x.fillText('HUSTLE 5  —  EASL FUTURE CHAMPIONS',1024,72);
+  x.fillStyle=C.yellow; x.font='800 30px Arial'; x.fillText('A L L - S T A R   W E E K E N D',1024,120);
+  return tex(c);
+}
+
+function teeTexture(){
+  const c=cvs(512,512), x=c.getContext('2d'); x.clearRect(0,0,512,512);
+  x.fillStyle=C.white; x.strokeStyle='#cdd9f0'; x.lineWidth=4;
+  // shirt silhouette
+  x.beginPath();
+  x.moveTo(150,120); x.lineTo(210,90); x.lineTo(256,110); x.lineTo(302,90); x.lineTo(362,120);
+  x.lineTo(410,190); x.lineTo(360,225); x.lineTo(345,200); x.lineTo(345,430);
+  x.lineTo(167,430); x.lineTo(167,200); x.lineTo(152,225); x.lineTo(102,190); x.closePath();
+  x.fill(); x.stroke();
+  // small chest print
+  x.fillStyle=C.red; x.fillRect(232,170,20,16);
+  x.fillStyle=C.yellow; x.fillRect(258,170,18,16);
+  x.fillStyle=C.orange; x.fillRect(244,192,18,16);
+  return tex(c);
+}
+
+function courtBaseTexture(){
+  const c=cvs(512,320), x=c.getContext('2d');
+  x.fillStyle='#06122e'; x.fillRect(0,0,512,320);
+  x.strokeStyle='#bcd6ff'; x.lineWidth=10;
+  rr(x,40,40,432,240,18); x.stroke();
+  rr(x,150,150,212,150,8); x.stroke();
+  x.beginPath(); x.arc(256,150,46,0,Math.PI*2); x.stroke();
+  return tex(c);
+}
+
+// ---------- materials ----------
+const matStruct = new THREE.MeshStandardMaterial({ color:C.navyD, roughness:0.85 });
+const matBlue   = new THREE.MeshStandardMaterial({ color:C.blue, roughness:0.6 });
+const matNavy   = new THREE.MeshStandardMaterial({ color:C.navy, roughness:0.7 });
+
+const booth = new THREE.Group(); scene.add(booth);
+
+// ---------- floor deck ----------
+const deck = new THREE.Mesh(new RoundedBoxGeometry(6.6,0.14,5.4,3,0.04),
+  new THREE.MeshStandardMaterial({ color:'#13245a', roughness:0.5, metalness:0.1 }));
+deck.position.set(0,0.07,-0.4); deck.receiveShadow=true; deck.castShadow=true; booth.add(deck);
+
+// court glow lines on deck (zone 2 side)
+const deckGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.2),
+  new THREE.MeshStandardMaterial({ map:courtBaseTexture(), emissive:'#6fa8ff', emissiveIntensity:0.9,
+    emissiveMap:courtBaseTexture(), transparent:true, color:'#0a1838', roughness:0.4 }));
+deckGlow.rotation.x=-Math.PI/2; deckGlow.position.set(1.5,0.145,-0.3); booth.add(deckGlow);
+
+// ---------- walls ----------
+function wallPanel(w,h,t,mat){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,t),mat); m.castShadow=true; m.receiveShadow=true; return m; }
+const wallMatFront = m => new THREE.MeshStandardMaterial({ map:m, roughness:0.75 });
+
+// back wall, left zone (collage)  x:-3..0
+const wL = wallPanel(3,3,0.12, wallMatFront(collageTexture()));
+wL.position.set(-1.5,1.5,-2.0); booth.add(wL);
+// back wall, right zone (dunk)    x:0..3
+const wR = wallPanel(3,3,0.12, wallMatFront(dunkTexture()));
+wR.position.set(1.5,1.5,-2.0); booth.add(wR);
+// return wall (right side, faces -x) along z:-2..1
+const wSide = wallPanel(3,3,0.12, wallMatFront(dunkTexture()));
+wSide.rotation.y = -Math.PI/2; wSide.position.set(3.0,1.5,-0.5); booth.add(wSide);
+
+// fascia header across back wall
+const fascia = new THREE.Mesh(new THREE.BoxGeometry(6.05,0.5,0.2), wallMatFront(fasciaTexture()));
+fascia.position.set(0,3.15,-1.96); fascia.castShadow=true; booth.add(fascia);
+const fasciaSide = new THREE.Mesh(new THREE.BoxGeometry(3.0,0.5,0.2), wallMatFront(fasciaTexture()));
+fasciaSide.rotation.y=-Math.PI/2; fasciaSide.position.set(2.96,3.15,-0.5); booth.add(fasciaSide);
+
+// ===================== ZONE 1 : SHIRT GIVEAWAY =====================
+// lightbox panel on wall
+const lightbox = new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.9),
+  new THREE.MeshStandardMaterial({ color:'#eef4ff', emissive:'#ffffff', emissiveIntensity:0.6 }));
+lightbox.position.set(-2.45,1.5,-1.93); booth.add(lightbox);
+
+// basketball helpers
+function basketball(r){
+  const c=cvs(256,256), x=c.getContext('2d');
+  x.fillStyle='#ff7a1a'; x.fillRect(0,0,256,256);
+  x.strokeStyle='#5a2300'; x.lineWidth=6;
+  x.beginPath(); x.moveTo(0,128); x.lineTo(256,128); x.stroke();
+  x.beginPath(); x.moveTo(128,0); x.lineTo(128,256); x.stroke();
+  x.beginPath(); x.arc(128,-40,150,0,Math.PI*2); x.stroke();
+  x.beginPath(); x.arc(128,296,150,0,Math.PI*2); x.stroke();
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r,32,32),
+    new THREE.MeshStandardMaterial({ map:tex(c), roughness:0.85 }));
+  m.castShadow=true; return m;
+}
+// shelves + balls
+for(let row=0;row<3;row++){
+  const shelf=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.05,0.28), matStruct);
+  shelf.position.set(-0.75,1.95-row*0.42,-1.78); shelf.castShadow=true; booth.add(shelf);
+  for(let i=0;i<3;i++){ const b=basketball(0.12); b.position.set(-1.05+i*0.3,2.07-row*0.42,-1.78); booth.add(b); }
+}
+
+// hanging tees (the giveaway item)
+function tee(){ const m=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.7),
+  new THREE.MeshStandardMaterial({ map:teeTexture(), transparent:true, alphaTest:0.5, side:THREE.DoubleSide, roughness:0.9 }));
+  m.castShadow=true; return m; }
+const t1=tee(); t1.position.set(-1.55,1.75,-1.9); booth.add(t1);
+const t2=tee(); t2.position.set(-0.85,1.75,-1.9); booth.add(t2);
+
+// giveaway counter
+const counter=new THREE.Mesh(new RoundedBoxGeometry(2.2,1.0,0.75,3,0.03), matNavy);
+counter.position.set(-1.3,0.5,-0.95); counter.castShadow=true; counter.receiveShadow=true; booth.add(counter);
+const counterTop=new THREE.Mesh(new THREE.BoxGeometry(2.26,0.06,0.81), matBlue);
+counterTop.position.set(-1.3,1.03,-0.95); booth.add(counterTop);
+
+// ===================== ZONE 2 : DUNK SHOT PHOTOBOOTH =====================
+// backboard prop
+const bbGroup=new THREE.Group();
+const backboard=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.05,0.08),
+  new THREE.MeshStandardMaterial({ map:backboardTexture(), roughness:0.5 }));
+backboard.castShadow=true; bbGroup.add(backboard);
+bbGroup.position.set(1.5,1.4,-1.55); booth.add(bbGroup);
+
+// pedestal
+const pedestal=new THREE.Mesh(new RoundedBoxGeometry(0.55,0.9,0.55,3,0.03), matBlue);
+pedestal.position.set(0.7,0.45,-0.9); pedestal.castShadow=true; booth.add(pedestal);
+
+// soft accent light in front of the zone-2 wall (where the hoop now stands)
+const rimLight=new THREE.PointLight('#7fb2ff',5,5,2); rimLight.position.set(1.5,1.8,-0.2); booth.add(rimLight);
+
+// basketball on the deck
+const ball=basketball(0.13); ball.position.set(1.1,0.27,-0.05); booth.add(ball);
+
+// ground basketballs scattered (life)
+const bA=basketball(0.13); bA.position.set(-2.4,0.27,0.7); booth.add(bA);
+
+// ---------- regulation-style BASKETBALL CHALLENGE hoop (backboard + rim + net) ----------
+function basketballHoop(){
+  const g=new THREE.Group();
+  const metal=new THREE.MeshStandardMaterial({ color:'#aab4c8', roughness:0.45, metalness:0.7 });
+  // weighted base + upright pole
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.55,0.18,28), matStruct);
+  base.position.set(0,0.09,0.22); base.castShadow=true; base.receiveShadow=true; g.add(base);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,3.2,20), metal);
+  pole.position.set(0,1.6,0.22); pole.castShadow=true; g.add(pole);
+  // backboard (white, EASL Future Champions + orange target)
+  const board=new THREE.Mesh(new THREE.BoxGeometry(1.75,1.05,0.06),
+    new THREE.MeshStandardMaterial({ map:hoopBoardTexture(), roughness:0.3 }));
+  board.position.set(0,2.95,0.0); board.castShadow=true; g.add(board);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.24), metal);
+  arm.position.set(0,2.7,0.12); g.add(arm);
+  // orange rim at playing height (~2.6 m, youth) projecting toward shooter (-z)
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.23,0.022,18,44),
+    new THREE.MeshStandardMaterial({ color:C.orange, roughness:0.4, metalness:0.3, emissive:'#5a1f00', emissiveIntensity:0.25 }));
+  rim.rotation.x=Math.PI/2; rim.position.set(0,2.6,-0.28); rim.castShadow=true; g.add(rim);
+  const conn=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.05,0.12),
+    new THREE.MeshStandardMaterial({ color:C.orange, roughness:0.5 }));
+  conn.position.set(0,2.6,-0.06); g.add(conn);
+  // white net (tapered cylinder with net texture)
+  const net=new THREE.Mesh(new THREE.CylinderGeometry(0.225,0.12,0.44,20,1,true),
+    new THREE.MeshStandardMaterial({ map:netTexture(), transparent:true, alphaTest:0.2,
+      side:THREE.DoubleSide, depthWrite:false, color:'#ffffff', roughness:0.9 }));
+  net.position.set(0,2.37,-0.28); g.add(net);
+  return g;
+}
+const hoop=basketballHoop();
+hoop.position.set(1.5,0,-0.55);     // ZONE 2 — standing in front of the dunk wall
+hoop.rotation.y=Math.PI;            // rim/backboard face the open carnival aisle
+booth.add(hoop);
+// shooting ball for the challenge
+const bChal=basketball(0.13); bChal.position.set(1.3,0.27,1.3); booth.add(bChal);
+
+// ---------- zone floor labels (banners) ----------
+function banner(text,col,w){
+  const c=cvs(1024,128), x=c.getContext('2d');
+  x.fillStyle=col; x.fillRect(0,0,1024,128);
+  x.fillStyle='#ffffff'; x.textAlign='center'; x.font='800 56px Arial';
+  x.fillText(text,512,84);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,w/8),
+    new THREE.MeshStandardMaterial({ map:tex(c), roughness:0.8 }));
+  return m;
+}
+const b1=banner('ZONE 1 · EASL SHIRT GIVEAWAY',C.blue,3.0);
+b1.position.set(-1.4,0.5,1.35); b1.rotation.x=-Math.PI/2.05; booth.add(b1);
+const b2=banner('ZONE 2 · DUNK SHOT PHOTOBOOTH',C.red,3.0);
+b2.position.set(1.5,0.5,1.35); b2.rotation.x=-Math.PI/2.05; booth.add(b2);
+
+// ---------- human scale reference (mannequin) ----------
+function person(col){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({ color:col, roughness:0.8 });
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.18,0.7,6,12),mat); body.position.y=0.95; body.castShadow=true;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.13,20,20),mat); head.position.y=1.5; head.castShadow=true;
+  const legs=new THREE.Mesh(new THREE.CapsuleGeometry(0.15,0.6,6,12),mat); legs.position.y=0.4; legs.castShadow=true;
+  g.add(body,head,legs); return g;
+}
+const p1=person('#34507f'); p1.position.set(-1.3,0,0.1); booth.add(p1);
+const p2=person('#46618f'); p2.position.set(1.55,0,0.3); booth.add(p2);
+
+// center the booth a touch
+booth.position.z = 0.3;
+
+// ---------- UI ----------
+const rotateBtn=document.getElementById('rotateBtn');
+rotateBtn.onclick=()=>{ controls.autoRotate=!controls.autoRotate;
+  rotateBtn.textContent=(controls.autoRotate?'⏸':'▶')+' Auto-rotate'; };
+document.getElementById('resetBtn').onclick=()=>{ camera.position.copy(START); controls.target.set(0,1.4,-0.6); };
+document.getElementById('frontBtn').onclick=()=>{ camera.position.set(0,2.2,9.5); controls.target.set(0,1.5,-1); };
+document.getElementById('glbBtn').onclick=()=>{
+  new GLTFExporter().parse(booth,(res)=>{
+    const blob=new Blob([res],{type:'model/gltf-binary'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='EASL-booth.glb'; a.click();
+  },(e)=>console.error(e),{binary:true});
+};
+
+// ---------- headless .glb export hook (used to generate EASL-booth.glb) ----------
+if(location.search.indexOf('glb')>=0){
+  setTimeout(()=>{
+    new GLTFExporter().parse(booth,(res)=>{
+      const bytes=new Uint8Array(res); let bin=''; const CH=0x8000;
+      for(let i=0;i<bytes.length;i+=CH){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH)); }
+      const el=document.createElement('pre'); el.id='glbout'; el.textContent=btoa(bin);
+      document.body.appendChild(el); document.title='GLB_READY';
+    },(e)=>{ document.title='GLB_ERR'; },{binary:true});
+  },1800);
+}
+
+// ---------- resize / loop ----------
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); });
+document.getElementById('loading').style.display='none';
+renderer.setAnimationLoop(()=>{ controls.update(); renderer.render(scene,camera); });
+</script>
+</body>
+</html>
