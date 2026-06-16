@@ -292,12 +292,31 @@ function basketball(r){
     new THREE.MeshStandardMaterial({ map:tex(c), roughness:0.85 }));
   m.castShadow=true; return m;
 }
-// shelves + balls
-for(let row=0;row<3;row++){
-  const shelf=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.05,0.28), matStruct);
-  shelf.position.set(-0.75,1.95-row*0.42,-1.78); shelf.castShadow=true; booth.add(shelf);
-  for(let i=0;i<3;i++){ const b=basketball(0.12); b.position.set(-1.05+i*0.3,2.07-row*0.42,-1.78); booth.add(b); }
+// freestanding 3x3 basketball rack, standing on the deck beside Zone 1
+function ballRack(){
+  const g=new THREE.Group();
+  const frameMat=new THREE.MeshStandardMaterial({ color:'#cfd6e2', roughness:0.4, metalness:0.7 });
+  // base
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.08,0.5), matStruct);
+  base.position.y=0.04; base.castShadow=true; base.receiveShadow=true; g.add(base);
+  // 4 corner posts
+  const postGeo=new THREE.CylinderGeometry(0.03,0.03,1.2,12);
+  [[-0.44,-0.2],[0.44,-0.2],[-0.44,0.2],[0.44,0.2]].forEach(([px,pz])=>{
+    const p=new THREE.Mesh(postGeo,frameMat); p.position.set(px,0.64,pz); p.castShadow=true; g.add(p);
+  });
+  // 3 trays, each holding 3 balls → 3x3 grid
+  for(let row=0;row<3;row++){
+    const y=0.34+row*0.34;
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(0.94,0.03,0.42), frameMat);
+    rail.position.set(0,y-0.13,0); rail.castShadow=true; g.add(rail);
+    for(let i=0;i<3;i++){ const b=basketball(0.13); b.position.set(-0.3+i*0.3,y,0); g.add(b); }
+  }
+  return g;
 }
+const rack=ballRack();
+rack.position.set(-2.75,0.14,-0.2);   // on the deck, to the side of Zone 1
+rack.rotation.y=0.18;                 // slight angle toward the aisle
+booth.add(rack);
 
 // hanging tees (the giveaway item)
 function tee(){ const m=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.7),
@@ -429,7 +448,11 @@ if(location.search.indexOf('glb')>=0){
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight); });
 document.getElementById('loading').style.display='none';
-renderer.setAnimationLoop(()=>{ controls.update(); renderer.render(scene,camera); });
+if(location.search.indexOf('glb')>=0){
+  renderer.render(scene,camera);   // single frame; skip the loop so headless export can finish
+} else {
+  renderer.setAnimationLoop(()=>{ controls.update(); renderer.render(scene,camera); });
+}
 </script>
 </body>
 </html>
